@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journey Analytics | Sukrit Oracle</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --card-dark: rgba(30, 41, 59, 0.8);
+            --accent: #6366f1;
+            --text-light: #f8fafc;
+            --text-dim: #94a3b8;
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+        }
+
+        #map {
+            height: calc(100vh - 70px);
+            width: 100%;
+            background: #111;
+        }
+
+        .header {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            z-index: 1000;
+            background: var(--card-dark);
+            backdrop-filter: blur(12px);
+            padding: 16px 24px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-light);
+        }
+
+        .header p {
+            margin: 4px 0 0 0;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        .footer {
+            height: 70px;
+            background: #020617;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 40px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .oracle-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .oracle-brand .status-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+            }
+
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+            }
+
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+            }
+        }
+
+        .footer p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .footer-highlight {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Popup Aesthetics */
+        .leaflet-popup-content-wrapper {
+            background: #1e293b !important;
+            color: white !important;
+            border-radius: 12px !important;
+            padding: 5px !important;
+        }
+
+        .leaflet-popup-tip {
+            background: #1e293b !important;
+        }
+
+        .popup-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+        }
+
+        .popup-header h3 {
+            margin: 0;
+            font-size: 14px;
+            color: var(--accent);
+        }
+
+        .popup-info {
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .popup-info span {
+            color: var(--text-dim);
+        }
+
+        .popup-info b {
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>GPS Data Visualization</h1>
+        <p>Lab Workshop | Chiang Mai corr. Phitsanulok</p>
+    </div>
+
+    <div id="map"></div>
+
+    <footer class="footer">
+        <div class="oracle-brand">
+            <div class="status-dot"></div>
+            <p>Powered by <span class="footer-highlight">Sukrit Oracle</span></p>
+        </div>
+        <p>Interactive Map Engine v1.0</p>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // GPS Data (Embedded for Single-File Deployment)
+        const gpsData = [
+            { lat: 18.464717, lon: 99.05675, place: "Mueang Lamphun District", time: "2026-02-27 08:04:17", battery: "80%" },
+            { lat: 18.456181, lon: 99.057669, place: "Mueang Lamphun District", time: "2026-02-27 08:09:47", battery: "80%" },
+            { lat: 18.456107, lon: 99.087873, place: "Mae Tha District", time: "2026-02-27 08:14:32", battery: "78%" },
+            { lat: 18.456107, lon: 99.087873, place: "Mae Tha District", time: "2026-02-27 08:14:32", battery: "78%" },
+            { lat: 18.461019, lon: 99.137354, place: "Mae Tha District", time: "2026-02-27 08:18:36", battery: "77%" },
+            { lat: 18.392756, lon: 99.265662, place: "Hang Chat District", time: "2026-02-27 09:01:45", battery: "69%" },
+            { lat: 18.364852, lon: 99.287066, place: "Hang Chat District", time: "2026-02-27 09:07:09", battery: "67%" },
+            { lat: 18.37956, lon: 99.305078, place: "Hang Chat District", time: "2026-02-27 09:11:23", battery: "67%" },
+            { lat: 18.348319, lon: 99.35155, place: "Hang Chat District", time: "2026-02-27 09:17:35", battery: "65%" },
+            { lat: 18.312283, lon: 99.413179, place: "Mueang Lampang District", time: "2026-02-27 09:22:15", battery: "64%" },
+            { lat: 18.281088, lon: 99.469882, place: "Mueang Lampang District", time: "2026-02-27 09:27:25", battery: "63%" },
+            { lat: 18.275846, lon: 99.47753, place: "Mueang Lampang District", time: "2026-02-27 09:32:24", battery: "62%" },
+            { lat: 18.223882, lon: 99.515192, place: "Mueang Lampang District", time: "2026-02-27 09:37:48", battery: "61%" },
+            { lat: 18.202323, lon: 99.560287, place: "Mae Tha District", time: "2026-02-27 09:43:23", battery: "59%" },
+            { lat: 18.240787, lon: 99.596923, place: "Mueang Lampang District", time: "2026-02-27 09:48:13", battery: "58%" },
+            { lat: 18.256232, lon: 99.655373, place: "Mae Mo District", time: "2026-02-27 09:53:39", battery: "57%" },
+            { lat: 18.264667, lon: 99.709782, place: "Mae Mo District", time: "2026-02-27 09:58:27", battery: "55%" },
+            { lat: 18.264667, lon: 99.709782, place: "Mae Mo District", time: "2026-02-27 09:58:27", battery: "55%" },
+            { lat: 18.277847, lon: 99.801018, place: "Mae Mo District", time: "2026-02-27 10:06:25", battery: "54%" },
+            { lat: 18.297822, lon: 99.86354, place: "Mae Mo District", time: "2026-02-27 10:14:25", battery: "52%" },
+            { lat: 18.297822, lon: 99.86354, place: "Mae Mo District", time: "2026-02-27 10:14:25", battery: "52%" },
+            { lat: 18.297822, lon: 99.86354, place: "Mae Mo District", time: "2026-02-27 10:14:25", battery: "52%" },
+            { lat: 18.297822, lon: 99.86354, place: "Mae Mo District", time: "2026-02-27 10:14:25", battery: "0%" },
+            { lat: 18.211666, lon: 99.871989, place: "Long District", time: "2026-02-27 10:29:32", battery: "49%" },
+            { lat: 18.194947, lon: 99.870168, place: "Long District", time: "2026-02-27 10:32:30", battery: "48%" },
+            { lat: 18.194947, lon: 99.870168, place: "Long District", time: "2026-02-27 10:32:30", battery: "48%" },
+            { lat: 18.194947, lon: 99.870168, place: "Long District", time: "2026-02-27 10:32:30", battery: "0%" },
+            { lat: 18.096358, lon: 99.866883, place: "Long District", time: "2026-02-27 10:49:41", battery: "46%" },
+            { lat: 18.096305, lon: 99.866846, place: "Long District", time: "2026-02-27 10:55:13", battery: "45%" },
+            { lat: 18.080372, lon: 99.879712, place: "Long District", time: "2026-02-27 10:59:32", battery: "44%" },
+            { lat: 18.080372, lon: 99.879712, place: "Long District", time: "2026-02-27 10:59:32", battery: "44%" },
+            { lat: 18.040347, lon: 99.916938, place: "Long District", time: "2026-02-27 11:09:52", battery: "42%" },
+            { lat: 18.032004, lon: 99.922519, place: "Long District", time: "2026-02-27 11:11:34", battery: "41%" },
+            { lat: 18.032004, lon: 99.922519, place: "Long District", time: "2026-02-27 11:11:34", battery: "41%" },
+            { lat: 18.032004, lon: 99.922519, place: "Long District", time: "2026-02-27 11:11:34", battery: "39%" },
+            { lat: 17.97274, lon: 100.052057, place: "Den Chai District", time: "2026-02-27 11:31:00", battery: "38%" },
+            { lat: 17.92115, lon: 100.062211, place: "Den Chai District", time: "2026-02-27 11:36:34", battery: "36%" },
+            { lat: 17.881632, lon: 100.040743, place: "Den Chai District", time: "2026-02-27 11:41:39", battery: "35%" },
+            { lat: 17.839016, lon: 100.046134, place: "Mueang Uttaradit District", time: "2026-02-27 11:47:01", battery: "34%" },
+            { lat: 17.808954, lon: 100.066603, place: "Mueang Uttaradit District", time: "2026-02-27 11:51:54", battery: "33%" },
+            { lat: 17.77201, lon: 100.108, place: "Mueang Uttaradit District", time: "2026-02-27 11:57:12", battery: "32%" },
+            { lat: 17.723428, lon: 100.126752, place: "Mueang Uttaradit District", time: "2026-02-27 12:02:22", battery: "31%" },
+            { lat: 17.652857, lon: 100.122463, place: "Mueang Uttaradit District", time: "2026-02-27 12:07:28", battery: "30%" },
+            { lat: 17.639648, lon: 100.10107, place: "Mueang Uttaradit District", time: "2026-02-27 12:12:16", battery: "29%" },
+            { lat: 17.620929, lon: 100.097137, place: "Mueang Uttaradit District", time: "2026-02-27 12:17:39", battery: "28%" },
+            { lat: 17.599924, lon: 100.093404, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:03", battery: "27%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "27%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "27%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit District", time: "2026-02-27 12:23:17", battery: "0%" },
+            { lat: 16.817458, lon: 100.25806, place: "Mueang Phitsanulok District", time: "2026-02-27 16:23:02", battery: "1%" },
+            { lat: 16.816864, lon: 100.258006, place: "Mueang Phitsanulok District", time: "2026-02-27 16:28:33", battery: "1%" },
+            { lat: 16.816866, lon: 100.258006, place: "Mueang Phitsanulok District", time: "2026-02-27 16:33:21", battery: "1%" },
+            { lat: 16.816868, lon: 100.258007, place: "Mueang Phitsanulok District", time: "2026-02-27 16:38:31", battery: "1%" },
+            { lat: 16.81687, lon: 100.258008, place: "Mueang Phitsanulok District", time: "2026-02-27 16:43:35", battery: "4%" },
+            { lat: 16.816871, lon: 100.258008, place: "Mueang Phitsanulok District", time: "2026-02-27 16:49:04", battery: "11%" },
+            { lat: 16.816907, lon: 100.258004, place: "Mueang Phitsanulok District", time: "2026-02-27 16:53:51", battery: "15%" },
+            { lat: 16.816907, lon: 100.258004, place: "Mueang Phitsanulok District", time: "2026-02-27 16:59:11", battery: "20%" },
+            { lat: 16.816919, lon: 100.258002, place: "Mueang Phitsanulok District", time: "2026-02-27 17:04:11", battery: "23%" },
+            { lat: 16.816934, lon: 100.258003, place: "Mueang Phitsanulok District", time: "2026-02-27 17:09:59", battery: "27%" },
+            { lat: 16.816936, lon: 100.258003, place: "Mueang Phitsanulok District", time: "2026-02-27 17:14:36", battery: "31%" },
+            { lat: 16.816945, lon: 100.258003, place: "Mueang Phitsanulok District", time: "2026-02-27 17:20:21", battery: "34%" },
+            { lat: 16.816947, lon: 100.258004, place: "Mueang Phitsanulok District", time: "2026-02-27 17:23:55", battery: "37%" },
+            { lat: 16.816956, lon: 100.258004, place: "Mueang Phitsanulok District", time: "2026-02-27 17:30:17", battery: "40%" },
+            { lat: 16.816946, lon: 100.258002, place: "Mueang Phitsanulok District", time: "2026-02-27 17:35:21", battery: "42%" },
+            { lat: 16.816941, lon: 100.258003, place: "Mueang Phitsanulok District", time: "2026-02-27 17:40:31", battery: "43%" },
+            { lat: 16.816943, lon: 100.258004, place: "Mueang Phitsanulok District", time: "2026-02-27 17:45:21", battery: "45%" },
+            { lat: 16.81693, lon: 100.258031, place: "Mueang Phitsanulok District", time: "2026-02-27 17:50:55", battery: "45%" },
+            { lat: 16.817666, lon: 100.258349, place: "Mueang Phitsanulok District", time: "2026-02-27 17:55:38", battery: "43%" },
+            { lat: 16.818115, lon: 100.258121, place: "Mueang Phitsanulok District", time: "2026-02-27 18:07:27", battery: "1%" },
+            { lat: 16.817932, lon: 100.259533, place: "Mueang Phitsanulok District", time: "2026-02-27 18:12:54", battery: "1%" },
+            { lat: 16.817928, lon: 100.25823, place: "Mueang Phitsanulok District", time: "2026-02-27 18:17:22", battery: "1%" },
+            { lat: 16.816055, lon: 100.256881, place: "Mueang Phitsanulok District", time: "2026-02-27 18:22:35", battery: "1%" },
+            { lat: 16.813947, lon: 100.263612, place: "Mueang Phitsanulok District", time: "2026-02-27 18:27:44", battery: "1%" },
+            { lat: 16.813222, lon: 100.263612, place: "Mueang Phitsanulok District", time: "2026-02-27 19:29:03", battery: "1%" },
+            { lat: 16.812322, lon: 100.261597, place: "Mueang Phitsanulok District", time: "2026-02-27 19:34:15", battery: "1%" },
+            { lat: 16.81233, lon: 100.261622, place: "Mueang Phitsanulok District", time: "2026-02-27 19:39:10", battery: "1%" },
+            { lat: 16.812311, lon: 100.261688, place: "Mueang Phitsanulok District", time: "2026-02-27 19:44:52", battery: "1%" },
+            { lat: 16.815793, lon: 100.257413, place: "Mueang Phitsanulok District", time: "2026-02-27 19:49:47", battery: "1%" },
+            { lat: 16.817779, lon: 100.258018, place: "Mueang Phitsanulok District", time: "2026-02-27 19:55:09", battery: "1%" },
+            { lat: 16.817492, lon: 100.257992, place: "Mueang Phitsanulok District", time: "2026-02-27 20:00:18", battery: "1%" },
+            { lat: 16.817754, lon: 100.258196, place: "Mueang Phitsanulok District", time: "2026-02-27 21:47:23", battery: "17%" },
+            { lat: 16.817565, lon: 100.25811, place: "Mueang Phitsanulok District", time: "2026-02-27 21:52:40", battery: "24%" },
+            { lat: 16.817717, lon: 100.258244, place: "Mueang Phitsanulok District", time: "2026-02-27 21:57:26", battery: "30%" },
+            { lat: 16.817739, lon: 100.258252, place: "Mueang Phitsanulok District", time: "2026-02-27 22:02:57", battery: "37%" },
+            { lat: 16.817741, lon: 100.258263, place: "Mueang Phitsanulok District", time: "2026-02-27 22:07:33", battery: "42%" },
+            { lat: 16.817743, lon: 100.25827, place: "Mueang Phitsanulok District", time: "2026-02-27 22:12:31", battery: "48%" },
+            { lat: 16.817744, lon: 100.258274, place: "Mueang Phitsanulok District", time: "2026-02-27 22:18:14", battery: "53%" },
+            { lat: 16.817744, lon: 100.258276, place: "Mueang Phitsanulok District", time: "2026-02-27 22:22:31", battery: "55%" },
+            { lat: 16.817705, lon: 100.2582, place: "Mueang Phitsanulok District", time: "2026-02-28 00:30:30", battery: "100%" },
+            { lat: 16.817706, lon: 100.2582, place: "Mueang Phitsanulok District", time: "2026-02-28 00:35:37", battery: "100%" },
+            { lat: 16.817707, lon: 100.258201, place: "Mueang Phitsanulok District", time: "2026-02-28 00:40:47", battery: "100%" },
+            { lat: 16.830032, lon: 100.25015, place: "Mueang Phitsanulok District", time: "2026-02-28 08:50:31", battery: "100%" },
+            { lat: 16.834802, lon: 100.225829, place: "Mueang Phitsanulok District", time: "2026-02-28 08:55:29", battery: "100%" },
+            { lat: 16.83486, lon: 100.213662, place: "Mueang Phitsanulok District", time: "2026-02-28 09:01:13", battery: "100%" },
+            { lat: 16.834891, lon: 100.213659, place: "Mueang Phitsanulok District", time: "2026-02-28 09:11:14", battery: "99%" },
+            { lat: 16.83489, lon: 100.213659, place: "Mueang Phitsanulok District", time: "2026-02-28 09:21:38", battery: "98%" },
+            { lat: 16.834787, lon: 100.213666, place: "Mueang Phitsanulok District", time: "2026-02-28 09:37:23", battery: "96%" },
+            { lat: 16.834882, lon: 100.213656, place: "Mueang Phitsanulok District", time: "2026-02-28 09:42:20", battery: "96%" },
+            { lat: 16.834881, lon: 100.213658, place: "Mueang Phitsanulok District", time: "2026-02-28 09:57:17", battery: "94%" },
+            { lat: 16.834877, lon: 100.213663, place: "Mueang Phitsanulok District", time: "2026-02-28 10:24:20", battery: "92%" },
+            { lat: 16.834808, lon: 100.213599, place: "Mueang Phitsanulok District", time: "2026-02-28 10:44:44", battery: "89%" },
+            { lat: 16.834887, lon: 100.213713, place: "Mueang Phitsanulok District", time: "2026-02-28 11:46:01", battery: "83%" },
+            { lat: 16.834723, lon: 100.213696, place: "Mueang Phitsanulok District", time: "2026-02-28 12:11:38", battery: "80%" }
+        ];
+
+        // Initialize Map
+        const map = L.map('map', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView([17.5, 100], 7);
+
+        // Standard Theme: Dark Mode
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19
+        }).addTo(map);
+
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        const coordinates = gpsData.map(d => [d.lat, d.lon]);
+
+        // Draw Path Line
+        const pathPolyline = L.polyline(coordinates, {
+            color: '#6366f1',
+            weight: 4,
+            opacity: 0.6,
+            lineJoin: 'round',
+            dashArray: '5, 8'
+        }).addTo(map);
+
+        // Add Markers with Click Popups
+        gpsData.forEach((d, idx) => {
+            const isFirst = idx === 0;
+            const isLast = idx === gpsData.length - 1;
+
+            const marker = L.circleMarker([d.lat, d.lon], {
+                radius: (isFirst || isLast) ? 8 : 4,
+                fillColor: isFirst ? '#10b981' : (isLast ? '#ef4444' : '#6366f1'),
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.9
+            }).addTo(map);
+
+            marker.bindPopup(`
+                <div class="popup-header"><h3>📍 ${d.place || 'Unknown Location'}</h3></div>
+                <div class="popup-info">
+                    <div><span>🕒 Time:</span> <b>${d.time}</b></div>
+                    <div><span>🔋 Battery:</span> <b>${d.battery}</b></div>
+                    <div style="margin-top: 4px; opacity: 0.5; font-style: italic;">#${idx + 1} Point</div>
+                </div>
+            `, { closeButton: false });
+        });
+
+        // Auto-fit bounds
+        map.fitBounds(pathPolyline.getBounds(), { padding: [50, 50] });
+
+    </script>
+</body>
+
+</html>
