@@ -4,18 +4,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DUSTBOY | 3D DATA NEXUS</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;800&family=Share+Tech+Mono&display=swap"
+    <title>DUSTBOY | OMEGA METROPOLIS</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap"
         rel="stylesheet">
     <style>
         :root {
-            --bg: #030712;
-            --neon-blue: #38bdf8;
-            --neon-green: #34d399;
-            --neon-orange: #fbbf24;
-            --neon-red: #f87171;
-            --glass: rgba(15, 23, 42, 0.65);
-            --glass-border: rgba(56, 189, 248, 0.3);
+            --bg: #00040a;
+            --cyan: #00f0ff;
+            --magenta: #ff003c;
+            --gold: #fcee0a;
+            --green: #00ff66;
+            --glass: rgba(0, 10, 25, 0.4);
+            --border: rgba(0, 240, 255, 0.2);
         }
 
         body,
@@ -26,473 +27,712 @@
             height: 100%;
             background-color: var(--bg);
             font-family: 'Outfit', sans-serif;
-            color: white;
+            color: #fff;
             overflow: hidden;
         }
 
-        #canvas-bg {
+        #webgl-container {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 0;
+            z-index: 1;
         }
 
-        .hud-container {
+        /* --- Floating 3D Labels --- */
+        #labels-container {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 10;
+            z-index: 5;
             pointer-events: none;
-            display: grid;
-            grid-template-columns: 350px 1fr 350px;
-            padding: 2rem;
+            /* Let clicks pass through to 3D scene if needed */
+        }
+
+        .station-label {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            /* Center horizontally, sit above the point */
+            background: rgba(0, 5, 15, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(4px);
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: white;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            text-align: center;
+            opacity: 0;
+            /* Hidden until updated */
+            transition: opacity 0.3s ease, border-color 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .station-label .node-id {
+            color: var(--cyan);
+            font-weight: 700;
+            margin-bottom: 2px;
+            font-size: 11px;
+        }
+
+        .station-label .pm-val {
+            font-size: 14px;
+            font-weight: 900;
+        }
+
+        .level-good {
+            border-bottom: 2px solid var(--green);
+            text-shadow: 0 0 5px var(--green);
+        }
+
+        .level-mod {
+            border-bottom: 2px solid var(--gold);
+            text-shadow: 0 0 5px var(--gold);
+        }
+
+        .level-bad {
+            border-bottom: 2px solid var(--magenta);
+            text-shadow: 0 0 5px var(--magenta);
+        }
+
+
+        /* --- HUD Layout --- */
+        .hud-overlay {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            padding: 30px;
             box-sizing: border-box;
-            gap: 2rem;
+            background: radial-gradient(circle at center, transparent 40%, rgba(0, 2, 10, 0.8) 100%);
+        }
+
+        /* Scanlines */
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0.3;
         }
 
         .panel {
             background: var(--glass);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            padding: 1.5rem;
-            pointer-events: auto;
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            width: 380px;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(56, 189, 248, 0.05);
-            transition: border-color 0.3s ease;
+            pointer-events: auto;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.05) inset;
         }
 
-        .panel-title {
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            color: var(--neon-blue);
-            margin-bottom: 1.5rem;
-            font-weight: 800;
+        /* Cyber-corners */
+        .panel::before,
+        .panel::after {
+            content: '';
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            border: 2px solid transparent;
+        }
+
+        .panel::before {
+            top: -1px;
+            left: -1px;
+            border-top-color: var(--cyan);
+            border-left-color: var(--cyan);
+        }
+
+        .panel::after {
+            bottom: -1px;
+            right: -1px;
+            border-bottom-color: var(--cyan);
+            border-right-color: var(--cyan);
+        }
+
+
+        .panel-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 2px;
+            color: var(--cyan);
             display: flex;
-            align-items: center;
             justify-content: space-between;
+            align-items: center;
         }
 
-        .status-dot {
+        .blinker {
             width: 8px;
             height: 8px;
+            background: var(--cyan);
             border-radius: 50%;
-            background: var(--neon-green);
-            box-shadow: 0 0 10px var(--neon-green);
-            animation: pulse 1.5s infinite;
+            box-shadow: 0 0 10px var(--cyan);
+            animation: blink 1s infinite alternate;
         }
 
-        @keyframes pulse {
-            0% {
+        @keyframes blink {
+            from {
                 opacity: 1;
                 transform: scale(1);
             }
 
-            50% {
-                opacity: 0.5;
-                transform: scale(1.5);
-            }
-
-            100% {
-                opacity: 1;
-                transform: scale(1);
+            to {
+                opacity: 0.2;
+                transform: scale(0.8);
             }
         }
 
-        /* Terminal Logs */
-        .log-area {
+        .panel-content {
+            padding: 20px;
             flex-grow: 1;
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.75rem;
-            color: #94a3b8;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow: hidden;
+        }
+
+        /* Left Panel - Command Center */
+        .metric-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #8fa3b0;
+            font-family: 'JetBrains Mono';
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            font-size: 48px;
+            font-weight: 900;
+            line-height: 1;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+
+        .chart-box {
+            width: 100%;
+            height: 150px;
+            position: relative;
+            margin-top: 10px;
+        }
+
+        /* Right Panel - Terminal */
+        .terminal-feed {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: #a0aec0;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            scrollbar-width: thin;
-            scrollbar-color: var(--neon-blue) transparent;
+            gap: 6px;
+            height: 100%;
+            padding-right: 5px;
         }
 
-        .log-entry {
-            background: rgba(0, 0, 0, 0.4);
-            padding: 8px;
-            border-left: 2px solid var(--neon-blue);
+        .terminal-feed::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .terminal-feed::-webkit-scrollbar-thumb {
+            background: var(--cyan);
             border-radius: 2px;
-            word-break: break-all;
-            animation: slideIn 0.3s ease-out;
         }
 
-        .log-entry.high-dust {
-            border-left-color: var(--neon-red);
+        .log-line {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            line-height: 1.4;
+            animation: typeIn 0.2s ease-out forwards;
+            opacity: 0;
+            transform: translateX(10px);
         }
 
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(-10px);
-            }
-
+        @keyframes typeIn {
             to {
                 opacity: 1;
                 transform: translateX(0);
             }
         }
 
-        /* Center Overlay */
-        .center-hud {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            pointer-events: none;
-            text-align: center;
+        .log-time {
+            color: #4a5568;
+            margin-right: 8px;
         }
 
-        h1 {
+        .log-node {
+            color: var(--cyan);
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .log-val.warn {
+            color: var(--gold);
+        }
+
+        .log-val.crit {
+            color: var(--magenta);
+            text-shadow: 0 0 5px var(--magenta);
+        }
+
+        /* Main Title Overlay */
+        .title-block {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .title-block h1 {
             font-size: 3rem;
-            font-weight: 800;
-            letter-spacing: 15px;
+            font-weight: 900;
+            letter-spacing: 20px;
             margin: 0;
-            text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
-            background: linear-gradient(180deg, #fff 0%, #94a3b8 100%);
+            margin-left: 20px;
+            /* Offset for tracking */
+            text-transform: uppercase;
+            background: linear-gradient(to bottom, #fff, #64748b);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.3));
         }
 
-        .subtitle {
-            font-family: 'Share Tech Mono', monospace;
-            color: var(--neon-blue);
+        .title-block p {
+            font-family: 'JetBrains Mono';
+            color: var(--cyan);
             letter-spacing: 5px;
-            font-size: 0.9rem;
-            margin-top: -10px;
-        }
-
-        .pm25-display {
-            margin-top: auto;
-            margin-bottom: 2rem;
-            background: var(--glass);
-            backdrop-filter: blur(10px);
-            padding: 2rem 4rem;
-            border-radius: 30px;
-            border: 1px solid var(--glass-border);
-            text-align: center;
-        }
-
-        .main-value {
-            font-size: 6rem;
-            font-weight: 800;
-            line-height: 1;
-            display: block;
-            margin-bottom: 10px;
-            transition: color 0.5s ease;
-        }
-
-        .unit {
-            font-size: 1.2rem;
-            color: #94a3b8;
-        }
-
-        .node-name {
-            font-size: 1rem;
-            color: var(--neon-blue);
-            font-weight: 500;
-        }
-
-        /* Charts */
-        .chart-container {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-around;
-        }
-
-        .chart-box {
-            position: relative;
-            height: 160px;
-            width: 100%;
+            margin-top: 5px;
+            font-size: 12px;
         }
     </style>
 </head>
 
 <body>
-    <div id="canvas-bg"></div>
+    <div id="webgl-container"></div>
+    <div id="labels-container"></div>
+    <div class="scanlines"></div>
 
-    <div class="hud-container">
-        <!-- Left Panel: Live Terminal -->
-        <div class="panel" style="max-height: 100%;">
-            <div class="panel-title">
-                MQTT DATA STREAM <div class="status-dot"></div>
-            </div>
-            <div class="log-area" id="terminal">
-                <div class="log-entry" style="color: var(--neon-green)">> INIT: Connecting to DUSTBOY WSS Bridge...
-                </div>
-            </div>
-        </div>
-
-        <!-- Center Panel: Hologram Core Title -->
-        <div class="center-hud">
-            <h1>NEXUS</h1>
-            <div class="subtitle">DUSTBOY SPATIAL MONITOR</div>
-
-            <div class="pm25-display">
-                <div class="node-name" id="latest-node">AWAITING SENSOR...</div>
-                <div class="main-value" id="main-pm25">--</div>
-                <div class="unit">PM2.5 (µg/m³)</div>
-            </div>
-        </div>
-
-        <!-- Right Panel: Analytics Widgets -->
+    <div class="hud-overlay">
+        <!-- Left: Analytics -->
         <div class="panel">
-            <div class="panel-title">
-                ENVIRONMENT METRICS
+            <div class="panel-header">
+                OMEGA NEXUS CORE <div class="blinker"></div>
             </div>
-            <div class="chart-container">
-                <div class="chart-box">
-                    <canvas id="temperatureChart"></canvas>
+            <div class="panel-content">
+                <div>
+                    <div class="metric-label">Global PM2.5 Flux (Avg)</div>
+                    <div class="metric-value" id="global-avg">--</div>
                 </div>
-                <hr style="border-top:1px solid rgba(255,255,255,0.1); width:100%; border-bottom:0px; margin: 10px 0;">
+
+                <div>
+                    <div class="metric-label">Active Monoliths</div>
+                    <div class="metric-value" style="font-size: 24px; color: var(--cyan);" id="active-nodes">0</div>
+                </div>
+
                 <div class="chart-box">
-                    <canvas id="humidityChart"></canvas>
+                    <canvas id="trendChart"></canvas>
+                </div>
+
+                <div style="margin-top: auto;">
+                    <div class="metric-label" style="font-size: 10px; opacity: 0.5;">STATUS: SYNCHRONIZING REALITY</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Empty for view -->
+
+        <!-- Right: Raw Stream -->
+        <div class="panel">
+            <div class="panel-header">
+                RAW DATA PACKETS <div class="blinker"
+                    style="background: var(--magenta); box-shadow: 0 0 10px var(--magenta);"></div>
+            </div>
+            <div class="panel-content" style="padding: 10px 20px;">
+                <div class="terminal-feed" id="terminal-feed">
+                    <div class="log-line"><span class="log-time">[SYS]</span> INITIALIZING WSS BRIDGE...</div>
+                    <div class="log-line"><span class="log-time">[SYS]</span> AWAITING MQTT PAYLOADS ON /status</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Libraries -->
+    <!-- Title -->
+    <div class="title-block">
+        <h1>DUSTBOY</h1>
+        <p>SPATIAL INTELLIGENCE GRID</p>
+    </div>
+
+    <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Post Processing for Bloom -->
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- App Logic -->
     <script>
-        // --- 1. Three.js Background Generation ---
-        const scene = new THREE.Scene();
-        // Dark metallic background
-        scene.fog = new THREE.FogExp2(0x030712, 0.002);
+        // --- 1. Three.js Setup (The Metropolis) ---
+        const container = document.getElementById('webgl-container');
+        const labelsContainer = document.getElementById('labels-container');
 
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 250;
-        camera.position.y = 50;
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x00040a, 0.0015); // Deep fog to hide grid edges
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+
+        // Initial cinematic camera position
+        camera.position.set(0, 150, 400);
         camera.lookAt(0, 0, 0);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.getElementById('canvas-bg').appendChild(renderer.domElement);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap pixel ratio for performance with bloom
+        container.appendChild(renderer.domElement);
 
-        // Core Sphere (Data Nexus)
-        const coreGeo = new THREE.IcosahedronGeometry(60, 2);
-        const coreMat = new THREE.MeshBasicMaterial({
-            color: 0x38bdf8,
-            wireframe: true,
-            transparent: true,
-            opacity: 0.8
-        });
-        const core = new THREE.Mesh(coreGeo, coreMat);
-        scene.add(core);
+        // --- Post-Processing (Bloom) ---
+        const renderScene = new THREE.RenderPass(scene, camera);
+        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.1;
+        bloomPass.strength = 1.2; // Intense neon glow
+        bloomPass.radius = 0.5;
 
-        // Inner glowing solid sphere
-        const innerGeo = new THREE.IcosahedronGeometry(55, 3);
-        const innerMat = new THREE.MeshPhongMaterial({
-            color: 0x0ea5e9,
-            emissive: 0x0ea5e9,
-            emissiveIntensity: 0.5,
-            transparent: true,
-            opacity: 0.4
-        });
-        const innerCore = new THREE.Mesh(innerGeo, innerMat);
-        scene.add(innerCore);
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
 
-        // Particle System (Dust)
-        const particlesGeo = new THREE.BufferGeometry();
-        const particlesCount = 3000;
-        const posArray = new Float32Array(particlesCount * 3);
+        // --- The Cyber Grid ---
+        const gridSize = 2000;
+        const gridDivisions = 100;
+        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x00f0ff, 0x001133);
+        gridHelper.position.y = -1; // Slightly below zero
+        // Fade grid at distance using material opacity hack
+        gridHelper.material.transparent = true;
+        gridHelper.material.opacity = 0.5;
+        scene.add(gridHelper);
 
-        for (let i = 0; i < particlesCount * 3; i += 3) {
-            // Orbiting sphere distribution
-            const r = 100 + Math.random() * 300;
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos(Math.random() * 2 - 1);
+        // Add a dark floor plane to block grid lines below it
+        const floorGeo = new THREE.PlaneGeometry(gridSize, gridSize);
+        const floorMat = new THREE.MeshBasicMaterial({ color: 0x000205 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -2;
+        scene.add(floor);
 
-            posArray[i] = r * Math.sin(phi) * Math.cos(theta); // x
-            posArray[i + 1] = r * Math.sin(phi) * Math.sin(theta); // y
-            posArray[i + 2] = r * Math.cos(phi); // z
+
+        // --- Data Monolith System ---
+        const stations = new Map(); // Store active stations: ID -> { mesh, data, labelElement }
+
+        // Base geometry for pillars
+        const pillarGeo = new THREE.BoxGeometry(10, 1, 10);
+        // Move origin to bottom of box so it scales upwards
+        pillarGeo.translate(0, 0.5, 0);
+
+        function getColorForPM25(value) {
+            if (value >= 50) return 0xff003c; // Magenta/Red (Haz)
+            if (value >= 25) return 0xfcee0a; // Gold/Yellow (Mod)
+            return 0x00ff66; // Green (Good)
         }
 
-        particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const particleMat = new THREE.PointsMaterial({
-            size: 1.5,
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0.6,
-            blending: THREE.AdditiveBlending
-        });
-        const particlesGroup = new THREE.Points(particlesGeo, particleMat);
-        scene.add(particlesGroup);
+        function getCSSClassForPM25(value) {
+            if (value >= 50) return 'level-bad';
+            if (value >= 25) return 'level-mod';
+            return 'level-good';
+        }
+
+        function spawnOrUpdateMonolith(nodeId, pm25) {
+            // Calculate a deterministic pseudo-random position based on node string
+            // so the same node always spawns in the same city block
+            let hash = 0;
+            for (let i = 0; i < nodeId.length; i++) hash = Math.imul(31, hash) + nodeId.charCodeAt(i) | 0;
+
+            // Constrain to a central "downtown" area (-300 to 300)
+            const x = (hash % 600) - 300;
+            const z = ((hash * 13) % 600) - 300;
+
+            // Height logic: Base height + exaggerated multiplier for dramatic effect
+            const targetHeight = 5 + (pm25 * 3);
+            const targetColorHex = getColorForPM25(pm25);
+
+            if (stations.has(nodeId)) {
+                // Update existing
+                const station = stations.get(nodeId);
+                station.targetHeight = targetHeight;
+                // Animate color change (simplified: jump to color for now)
+                station.mesh.material.color.setHex(targetColorHex);
+                station.mesh.material.emissive.setHex(targetColorHex);
+
+                // Update Label Data
+                station.data.pm25 = pm25;
+                station.labelElement.querySelector('.pm-val').innerText = pm25.toFixed(1);
+                station.labelElement.className = `station-label ${getCSSClassForPM25(pm25)}`;
+
+                // Briefly increase scale for a "pulse" effect on data receive
+                station.mesh.scale.x = 1.5;
+                station.mesh.scale.z = 1.5;
+
+            } else {
+                // Spawn new
+                const mat = new THREE.MeshStandardMaterial({
+                    color: targetColorHex,
+                    emissive: targetColorHex,
+                    emissiveIntensity: 0.8,
+                    roughness: 0.2,
+                    metalness: 0.8
+                });
+                const mesh = new THREE.Mesh(pillarGeo, mat);
+                mesh.position.set(x, 0, z);
+                mesh.scale.set(1, 0.1, 1); // Start flat
+                scene.add(mesh);
+
+                // Create HTML Label
+                const label = document.createElement('div');
+                label.className = `station-label ${getCSSClassForPM25(pm25)}`;
+                label.innerHTML = `
+                    <div class="node-id">${nodeId}</div>
+                    <div class="pm-val">${pm25.toFixed(1)}</div>
+                `;
+                labelsContainer.appendChild(label);
+
+                stations.set(nodeId, {
+                    mesh: mesh,
+                    targetHeight: targetHeight,
+                    data: { pm25: pm25 },
+                    labelElement: label
+                });
+
+                document.getElementById('active-nodes').innerText = stations.size;
+            }
+        }
 
         // Lighting
-        const light = new THREE.PointLight(0xffffff, 1, 500);
-        light.position.set(0, 0, 0);
-        scene.add(light);
-        scene.add(new THREE.AmbientLight(0x404040));
+        const ambientLight = new THREE.AmbientLight(0x222222);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        dirLight.position.set(100, 200, 50);
+        scene.add(dirLight);
 
-        function animate3D() {
-            requestAnimationFrame(animate3D);
 
-            core.rotation.y += 0.005;
-            core.rotation.x += 0.002;
-            innerCore.rotation.y -= 0.003;
+        // --- Cinematic Camera & Animation Loop ---
+        let angle = 0;
+        const radius = 450;
 
-            particlesGroup.rotation.y += 0.001;
-            particlesGroup.rotation.z += 0.0005;
+        // Setup projected vectors for labels
+        const tempV = new THREE.Vector3();
 
-            renderer.render(scene, camera);
+        function updateLabels() {
+            stations.forEach((station) => {
+                const mesh = station.mesh;
+                const label = station.labelElement;
+
+                // Grab top center of the scaled pillar
+                tempV.set(mesh.position.x, mesh.position.y + mesh.scale.y + 2, mesh.position.z);
+
+                // Project 3D pos to 2D screen space
+                tempV.project(camera);
+
+                // Check if behind camera
+                if (tempV.z > 1) {
+                    label.style.opacity = 0;
+                    return;
+                }
+
+                // Convert normalized device coords to CSS pixels
+                const x = (tempV.x * .5 + .5) * window.innerWidth;
+                const y = (tempV.y * -.5 + .5) * window.innerHeight;
+
+                label.style.transform = `translate(-50%, -100%) translate(${x}px, ${y}px)`;
+
+                // Fade in if it was hidden and is somewhat close to center
+                // Fade out if near edges to keep UI clean
+                const distFromCenter = Math.sqrt(Math.pow(tempV.x, 2) + Math.pow(tempV.y, 2));
+                if (distFromCenter < 0.8) {
+                    label.style.opacity = 1;
+                } else {
+                    label.style.opacity = 0.2;
+                }
+            });
         }
-        animate3D();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 1. Cinematic Orbit
+            angle += 0.001; // Slow rotation speed
+            camera.position.x = Math.sin(angle) * radius;
+            camera.position.z = Math.cos(angle) * radius;
+            camera.lookAt(0, 50, 0); // Look slightly up towards the city center
+
+            // 2. Animate Pillars (Spring physics simulation)
+            stations.forEach((station) => {
+                const mesh = station.mesh;
+
+                // Lerp height
+                mesh.scale.y += (station.targetHeight - mesh.scale.y) * 0.05;
+
+                // Slowly return X/Z scale to 1 after "pulse"
+                if (mesh.scale.x > 1) {
+                    mesh.scale.x -= 0.02;
+                    mesh.scale.z -= 0.02;
+                }
+            });
+
+            // 3. Update HTML Labels
+            updateLabels();
+
+            // 4. Render with Bloom
+            composer.render();
+        }
+        animate();
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // --- 2. Color Logic based on PM2.5 ---
-        // Blue (Good) -> Yellow (Mod) -> Red (Bad)
-        function updateAesthetics(pm25) {
-            let colorHex = 0x38bdf8; // Default Blue
-            let cssColor = "var(--neon-blue)";
 
-            if (pm25 >= 50) {
-                colorHex = 0xf87171; // Red
-                cssColor = "var(--neon-red)";
-            } else if (pm25 >= 30) {
-                colorHex = 0xfbbf24; // Yellow
-                cssColor = "var(--neon-orange)";
-            } else if (pm25 >= 15) {
-                colorHex = 0x34d399; // Green
-                cssColor = "var(--neon-green)";
-            }
+        // --- 2. Data Logic (MQTT & Chart.js) ---
+        let pmDataHistory = [];
+        const maxHistory = 20;
 
-            // Tween colors via Three.js (simple snap for now, but smooth is possible)
-            coreMat.color.setHex(colorHex);
-            innerMat.color.setHex(colorHex);
-            innerMat.emissive.setHex(colorHex);
+        // Setup Trend Chart
+        Chart.defaults.color = '#8fa3b0';
+        Chart.defaults.font.family = "'JetBrains Mono', monospace";
 
-            document.getElementById('main-pm25').style.color = cssColor;
-            return cssColor;
-        }
+        const ctx = document.getElementById('trendChart').getContext('2d');
+        const trendGradient = ctx.createLinearGradient(0, 0, 0, 150);
+        trendGradient.addColorStop(0, 'rgba(0, 240, 255, 0.5)');
+        trendGradient.addColorStop(1, 'rgba(0, 240, 255, 0.0)');
 
-        // --- 3. Chart.js Setup ---
-        Chart.defaults.color = '#94a3b8';
-        Chart.defaults.font.family = "'Outfit', sans-serif";
-
-        function createDoughnut(ctxId, label, color) {
-            return new Chart(document.getElementById(ctxId), {
-                type: 'doughnut',
-                data: {
-                    labels: [label, 'Remaining'],
-                    datasets: [{
-                        data: [0, 100],
-                        backgroundColor: [color, 'rgba(255,255,255,0.05)'],
-                        borderWidth: 0,
-                        cutout: '80%',
-                        borderRadius: 10
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { enabled: false }
-                    },
-                    animation: { duration: 1000, easing: 'easeOutQuart' }
-                },
-                plugins: [{
-                    id: 'centerText',
-                    beforeDraw: function (chart) {
-                        var width = chart.width, height = chart.height, ctx = chart.ctx;
-                        ctx.restore();
-                        var fontSize = (height / 80).toFixed(2);
-                        ctx.font = "800 " + fontSize + "em sans-serif";
-                        ctx.textBaseline = "middle";
-                        ctx.fillStyle = "#fff";
-                        var text = chart.data.datasets[0].data[0].toFixed(1) + (label === 'Temp' ? '°C' : '%');
-                        var textX = Math.round((width - ctx.measureText(text).width) / 2);
-                        var textY = height / 2;
-                        ctx.fillText(text, textX, textY);
-
-                        ctx.font = "300 " + (fontSize * 0.3).toFixed(2) + "em sans-serif";
-                        ctx.fillStyle = color;
-                        var labelText = label.toUpperCase();
-                        var labelX = Math.round((width - ctx.measureText(labelText).width) / 2);
-                        ctx.fillText(labelText, labelX, textY + height * 0.15);
-                        ctx.save();
-                    }
+        const trendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array(maxHistory).fill(''), // Empty labels for continuous flow
+                datasets: [{
+                    label: 'Global PM2.5',
+                    data: Array(maxHistory).fill(0),
+                    borderColor: '#00f0ff',
+                    borderWidth: 2,
+                    backgroundColor: trendGradient,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0
                 }]
-            });
-        }
-
-        const tempChart = createDoughnut('temperatureChart', 'Temp', '#fbbf24');
-        const humChart = createDoughnut('humidityChart', 'Humid', '#38bdf8');
-
-
-        // --- 4. MQTT Live Data Integration ---
-        const terminal = document.getElementById('terminal');
-        const latestNodeEl = document.getElementById('latest-node');
-        const mainPm25El = document.getElementById('main-pm25');
-
-        function addLog(text, pm25Level) {
-            const el = document.createElement('div');
-            el.className = 'log-entry';
-            if (pm25Level >= 50) el.classList.add('high-dust');
-            el.innerText = `> ${new Date().toLocaleTimeString()} | ${text}`;
-            terminal.appendChild(el);
-
-            // Keep only last 50 logs
-            if (terminal.childElementCount > 50) {
-                terminal.removeChild(terminal.firstChild);
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 }, // Disable animation for instant snappy updates
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: {
+                        display: true,
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        beginAtZero: true
+                    }
+                }
             }
-            terminal.scrollTop = terminal.scrollHeight;
+        });
+
+        // MQTT Client Setup
+        const terminalFeed = document.getElementById('terminal-feed');
+        const globalAvgEl = document.getElementById('global-avg');
+
+        function appendLog(node, val, time) {
+            const row = document.createElement('div');
+            row.className = 'log-line';
+
+            let valClass = '';
+            if (val >= 50) valClass = 'crit';
+            else if (val >= 25) valClass = 'warn';
+
+            row.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-node">${node}</span> PM2.5: <span class="log-val ${valClass}">${val.toFixed(2)}</span>`;
+            terminalFeed.appendChild(row);
+
+            if (terminalFeed.childElementCount > 40) {
+                terminalFeed.removeChild(terminalFeed.firstChild);
+            }
+            terminalFeed.scrollTop = terminalFeed.scrollHeight;
         }
 
         const client = mqtt.connect('wss://dustboy-wss-bridge.laris.workers.dev/mqtt');
 
         client.on('connect', () => {
-            addLog('CONNECTION ESTABLISHED. SUBSCRIBING TO /status...', 0);
+            appendLog('SYS', 0, 'OK');
+            terminalFeed.innerHTML += `<div class="log-line" style="color:var(--green)">> WS-BRIDGE CONNECTED.</div>`;
             client.subscribe('DUSTBOY/+/+/+/status');
         });
+
+        let sumPM25 = 0;
+        let updateThrottler = 0;
 
         client.on('message', (topic, message) => {
             try {
                 const payload = JSON.parse(message.toString());
                 const data = payload.d || {};
-                const nodeName = data.myName || "UNKNOWN";
+                const nodeName = data.myName || "UKN";
                 const pm25 = data.pm2_5 || 0;
 
-                // 1. Log Raw Data
-                addLog(`[${nodeName}] PM2.5: ${pm25}, Temp: ${data.temperature_c}°C`, pm25);
+                const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-                // 2. Update Charts
-                tempChart.data.datasets[0].data = [data.temperature_c, 50 - data.temperature_c]; // Max 50C scale approx
-                tempChart.update();
+                // Update 3D Metropolist
+                spawnOrUpdateMonolith(nodeName, pm25);
 
-                humChart.data.datasets[0].data = [data.humidity_rh, 100 - data.humidity_rh];
-                humChart.update();
+                // Update Terminal
+                appendLog(nodeName, pm25, timeStr);
 
-                // 3. Update Main Display & Aesthetics
-                latestNodeEl.innerText = `LATEST SENSOR: ${nodeName}`;
-                mainPm25El.innerText = pm25;
-                updateAesthetics(pm25);
+                // Calculate ongoing pseudo-average for the chart
+                // (In a real app, you'd average the entire `stations` map periodically. 
+                // Here we just keep a running exponential moving average of incoming packets for a dynamic chart)
+                sumPM25 = (sumPM25 * 0.95) + (pm25 * 0.05);
+
+                // Throttle chart updates slightly so it doesn't redraw 50 times a second
+                updateThrottler++;
+                if (updateThrottler > 5) {
+                    globalAvgEl.innerText = sumPM25.toFixed(1);
+
+                    // Shift chart data
+                    const chartData = trendChart.data.datasets[0].data;
+                    chartData.push(sumPM25);
+                    chartData.shift();
+                    trendChart.update();
+
+                    updateThrottler = 0;
+
+                    // Change global text color if critical
+                    if (sumPM25 > 35) globalAvgEl.style.color = "var(--magenta)";
+                    else globalAvgEl.style.color = "white";
+                }
 
             } catch (e) {
-                console.error("Payload parse error", e);
+                // Ignore parse errors from malformed packets
             }
         });
 
