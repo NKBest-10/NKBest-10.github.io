@@ -78,6 +78,46 @@
             gap: 8px;
         }
 
+        .point-label {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-left: 3px solid #10b981;
+            /* Default green battery */
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: white;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+            transform: translate(-50%, -100%);
+            margin-top: -15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            white-space: nowrap;
+            z-index: 5;
+        }
+
+        .point-label .battery {
+            font-family: 'Prompt', sans-serif;
+            font-weight: bold;
+            display: block;
+            margin-top: 2px;
+            font-size: 0.7rem;
+        }
+
+        .point-label.low-battery {
+            border-left-color: #ef4444;
+        }
+
+        /* Red */
+        .point-label.med-battery {
+            border-left-color: #f59e0b;
+        }
+
+        /* Yellow */
+
         .header-glass p {
             margin: 8px 0 0 0;
             color: #10b981;
@@ -154,24 +194,24 @@
     <script>
         // --- GPS Dataset ---
         const gpsData = [
-            { lat: 18.464717, lon: 99.05675, place: "Mueang Lamphun" },
-            { lat: 18.456181, lon: 99.057669, place: "Mueang Lamphun" },
-            { lat: 18.456107, lon: 99.087873, place: "Mae Tha" },
-            { lat: 18.392756, lon: 99.265662, place: "Hang Chat" },
-            { lat: 18.312283, lon: 99.413179, place: "Mueang Lampang" },
-            { lat: 18.275846, lon: 99.47753, place: "Mueang Lampang" },
-            { lat: 18.256232, lon: 99.655373, place: "Mae Mo" },
-            { lat: 18.297822, lon: 99.86354, place: "Mae Mo" },
-            { lat: 18.211666, lon: 99.871989, place: "Long" },
-            { lat: 18.080372, lon: 99.879712, place: "Long" },
-            { lat: 18.032004, lon: 99.922519, place: "Long" },
-            { lat: 17.97274, lon: 100.052057, place: "Den Chai" },
-            { lat: 17.839016, lon: 100.046134, place: "Mueang Uttaradit" },
-            { lat: 17.723428, lon: 100.126752, place: "Mueang Uttaradit" },
-            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit" },
-            { lat: 16.817458, lon: 100.25806, place: "Mueang Phitsanulok" },
-            { lat: 16.817754, lon: 100.258196, place: "Mueang Phitsanulok" },
-            { lat: 16.834723, lon: 100.213696, place: "Mueang Phitsanulok" }
+            { lat: 18.464717, lon: 99.05675, place: "Mueang Lamphun", battery: "80%" },
+            { lat: 18.456181, lon: 99.057669, place: "Mueang Lamphun", battery: "80%" },
+            { lat: 18.456107, lon: 99.087873, place: "Mae Tha", battery: "78%" },
+            { lat: 18.392756, lon: 99.265662, place: "Hang Chat", battery: "69%" },
+            { lat: 18.312283, lon: 99.413179, place: "Mueang Lampang", battery: "64%" },
+            { lat: 18.275846, lon: 99.47753, place: "Mueang Lampang", battery: "62%" },
+            { lat: 18.256232, lon: 99.655373, place: "Mae Mo", battery: "57%" },
+            { lat: 18.297822, lon: 99.86354, place: "Mae Mo", battery: "52%" },
+            { lat: 18.211666, lon: 99.871989, place: "Long", battery: "49%" },
+            { lat: 18.080372, lon: 99.879712, place: "Long", battery: "47%" },
+            { lat: 18.032004, lon: 99.922519, place: "Long", battery: "46%" },
+            { lat: 17.97274, lon: 100.052057, place: "Den Chai", battery: "42%" },
+            { lat: 17.839016, lon: 100.046134, place: "Mueang Uttaradit", battery: "40%" },
+            { lat: 17.723428, lon: 100.126752, place: "Mueang Uttaradit", battery: "37%" },
+            { lat: 17.594402, lon: 100.093817, place: "Mueang Uttaradit", battery: "34%" },
+            { lat: 16.817458, lon: 100.25806, place: "Mueang Phitsanulok", battery: "29%" },
+            { lat: 16.817754, lon: 100.258196, place: "Mueang Phitsanulok", battery: "35%" },
+            { lat: 16.834723, lon: 100.213696, place: "Mueang Phitsanulok", battery: "31%" }
         ];
 
         // --- Core Scene ---
@@ -270,6 +310,29 @@
 
         scene.add(trainGroup);
 
+        // --- HTML Floating Labels ---
+        const labels = [];
+        const container = document.getElementById('canvas-container');
+
+        gpsData.forEach((d, i) => {
+            const el = document.createElement('div');
+            el.className = 'point-label';
+
+            let colorCls = '';
+            const battVal = parseInt(d.battery);
+            if (battVal < 30) colorCls = 'low-battery';
+            else if (battVal < 50) colorCls = 'med-battery';
+            if (colorCls) el.classList.add(colorCls);
+
+            el.innerHTML = `${d.place} <span class="battery">⚡ ${d.battery}</span>`;
+            container.appendChild(el);
+
+            labels.push({
+                element: el,
+                pos: points[i]
+            });
+        });
+
         // Ambient Lights
         scene.add(new THREE.AmbientLight(0xffffff, 0.4));
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -279,6 +342,7 @@
         // --- Animation ---
         let t = 0;
         const progressEl = document.getElementById('progress-percent');
+        const tempV = new THREE.Vector3();
 
         function animate() {
             requestAnimationFrame(animate);
@@ -294,6 +358,25 @@
 
             // Update UI
             progressEl.innerText = `${Math.round(t * 100)}%`;
+
+            // Update Labels
+            labels.forEach(lbl => {
+                tempV.copy(lbl.pos);
+                tempV.project(camera);
+
+                // Check if behind camera
+                if (tempV.z > 1) {
+                    lbl.element.style.opacity = 0;
+                    return;
+                }
+
+                const x = (tempV.x * .5 + .5) * window.innerWidth;
+                const y = (tempV.y * -.5 + .5) * window.innerHeight;
+
+                lbl.element.style.left = `${x}px`;
+                lbl.element.style.top = `${y}px`;
+                lbl.element.style.opacity = 1;
+            });
 
             controls.update();
             composer.render();
